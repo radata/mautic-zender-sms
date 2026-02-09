@@ -4,7 +4,7 @@ return [
     'name'        => 'Zender SMS',
     'description' => 'SMS transport for Zender API (zender.hollandworx.nl)',
     'version'     => '1.0.0',
-    'author'      => 'Hollandworx',
+    'author'      => 'Radata',
 
     'services' => [
         'integrations' => [

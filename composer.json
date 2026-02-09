@@ -1,12 +1,11 @@
 {
-    "name": "hollandworx/mautic-zender-sms",
+    "name": "radata/mautic-zender-sms",
     "description": "Mautic SMS transport plugin for the Zender API",
     "type": "mautic-plugin",
     "license": "MIT",
     "authors": [
         {
-            "name": "Hollandworx",
-            "homepage": "https://hollandworx.nl"
+            "name": "Radata"
         }
     ],
     "require": {
