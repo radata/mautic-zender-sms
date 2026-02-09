@@ -6,6 +6,15 @@ return [
     'version'     => '1.0.0',
     'author'      => 'Radata',
 
+    'routes' => [
+        'main' => [
+            'mautic_plugin_zendersms_action' => [
+                'path'       => '/zendersms/{objectAction}/{objectId}',
+                'controller' => 'MauticPlugin\ZenderSmsBundle\Controller\SmsController::executeAction',
+            ],
+        ],
+    ],
+
     'services' => [
         'integrations' => [
             'mautic.integration.zendersms' => [
@@ -28,6 +37,21 @@ return [
                     'mautic.lead.model.dnc',
                     'mautic.lead.field.fields_with_unique_identifier',
                 ],
+            ],
+        ],
+        'events' => [
+            'mautic.zendersms.subscriber.buttons' => [
+                'class'     => \MauticPlugin\ZenderSmsBundle\EventListener\ButtonSubscriber::class,
+                'arguments' => [
+                    'mautic.helper.integration',
+                    'translator',
+                    'router',
+                ],
+            ],
+        ],
+        'forms' => [
+            'mautic.form.type.zender_send_sms' => [
+                'class' => \MauticPlugin\ZenderSmsBundle\Form\Type\SendSmsType::class,
             ],
         ],
         'others' => [
