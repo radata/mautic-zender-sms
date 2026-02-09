@@ -1,0 +1,24 @@
+{
+    "name": "hollandworx/mautic-zender-sms",
+    "description": "Mautic SMS transport plugin for the Zender API",
+    "type": "mautic-plugin",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Hollandworx",
+            "homepage": "https://hollandworx.nl"
+        }
+    ],
+    "require": {
+        "php": ">=8.0",
+        "mautic/core-lib": "^4.0 || ^5.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "MauticPlugin\\ZenderSmsBundle\\": ""
+        }
+    },
+    "extra": {
+        "install-directory-name": "ZenderSmsBundle"
+    }
+}
