@@ -11,7 +11,7 @@ Mautic SMS transport plugin for sending SMS messages via the [Zender](https://ze
 
 ## Requirements
 
-- Mautic 4.x or 5.x
+- Mautic 4.x, 5.x, 6.x or 7.x
 - PHP 8.0+
 - A Zender account with API access
 
@@ -28,17 +28,21 @@ docker exec --user root mautic_web mkdir -p /var/www/.npm
 docker exec --user root mautic_web chown -R www-data:www-data /var/www/.npm
 ```
 
-Add the GitHub repository to your Mautic project's `composer.json`:
+Allow dev packages (only needed once per Mautic installation):
 
 ```bash
 docker exec --user www-data --workdir /var/www/html mautic_web \
-  composer config repositories.radata/mautic-zender-sms vcs \
-  https://github.com/radata/mautic-zender-sms --no-interaction
+  composer config minimum-stability dev
+docker exec --user www-data --workdir /var/www/html mautic_web \
+  composer config prefer-stable true
 ```
 
-Install the plugin:
+Add the GitHub repository and install the plugin:
 
 ```bash
+docker exec --user www-data --workdir /var/www/html mautic_web \
+  composer config repositories.mautic-zender-sms vcs \
+  https://github.com/radata/mautic-zender-sms --no-interaction
 docker exec --user www-data --workdir /var/www/html mautic_web \
   composer require radata/mautic-zender-sms:dev-main -W --no-interaction
 ```
@@ -50,18 +54,37 @@ docker exec --user www-data --workdir /var/www/html mautic_web \
   composer update radata/mautic-zender-sms -W --no-interaction
 ```
 
-### Manual Installation
+If the npm post-install hook fails after composer require, fix it:
 
-1. Copy or symlink this plugin to `plugins/ZenderSmsBundle/` in your Mautic installation.
-2. Clear the Mautic cache:
-   ```bash
-   bin/console cache:clear
-   ```
+```bash
+docker exec --user root mautic_web rm -rf /var/www/html/node_modules
+docker exec --user root mautic_web mkdir -p /var/www/.npm
+docker exec --user root mautic_web chown -R www-data:www-data /var/www/.npm
+docker exec --user www-data --workdir /var/www/html mautic_web npm ci --no-audit
+```
+
+### Manual Installation (docker cp)
+
+```bash
+docker cp plugins/ZenderSmsBundle mautic_web:/var/www/html/plugins/ZenderSmsBundle
+docker exec --user root mautic_web chown -R www-data:www-data /var/www/html/plugins/ZenderSmsBundle
+```
 
 ### Post-Installation
 
-1. Navigate to **Settings > Plugins** and click **Install/Upgrade Plugins**.
-2. Find **Zender SMS** and click **Configure**.
+Clear cache (hard delete required), reload plugins, then enable in UI:
+
+```bash
+docker exec --user www-data mautic_web rm -rf /var/www/html/var/cache/prod
+docker exec --user www-data --workdir /var/www/html mautic_web php bin/console cache:warmup --env=prod
+docker exec --user www-data --workdir /var/www/html mautic_web php bin/console mautic:plugins:reload
+```
+
+1. Go to **Settings > Plugins > Zender SMS**
+2. Set **Published** to **Yes**
+3. Enter your API Secret from Zender (Tools > API Keys)
+4. In Features tab: select Mode (devices/credits), enter Device ID or Gateway ID
+5. Go to **Settings > Configuration > SMS Settings** and select **Zender SMS** as transport
 
 ## Configuration
 
@@ -78,6 +101,33 @@ In the plugin settings:
 | **API URL** | Zender API endpoint (default: `https://zender.hollandworx.nl`) |
 
 After configuring, enable the plugin and select **Zender SMS** as your SMS transport under **Settings > Configuration > SMS Settings**.
+
+## Plugin Structure
+
+```
+plugins/ZenderSmsBundle/
+├── Config/config.php              # Service registration
+├── Integration/
+│   └── ZenderSmsIntegration.php   # Settings UI (API key, mode, device/gateway)
+├── Transport/
+│   ├── Configuration.php          # Reads credentials from integration settings
+│   ├── ConfigurationException.php
+│   └── ZenderTransport.php        # Sends SMS via POST /api/send/sms
+├── Translations/en_US/messages.ini
+└── ZenderSmsBundle.php            # Bundle class
+```
+
+## Uninstall
+
+```bash
+docker exec --user www-data --workdir /var/www/html mautic_web \
+  composer remove radata/mautic-zender-sms -W --no-interaction
+docker exec --user www-data --workdir /var/www/html mautic_web \
+  composer config --unset repositories.mautic-zender-sms
+docker exec --user www-data mautic_web rm -rf /var/www/html/var/cache/prod
+docker exec --user www-data --workdir /var/www/html mautic_web php bin/console cache:warmup --env=prod
+docker exec --user www-data --workdir /var/www/html mautic_web php bin/console mautic:plugins:reload
+```
 
 ## License
 
