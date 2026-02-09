@@ -2,5 +2,17 @@
     <div class="alert alert-info">
         {{ 'zender_sms.send.description'|trans({'%contact%': contact.getName()}) }}
     </div>
-    {{ form(form) }}
+
+    {{ form_start(form) }}
+    {{ form_row(form.transport) }}
+    {{ form_row(form.smsId) }}
+
+    <div class="mt-2 mb-2" style="text-align:center;color:#999;font-size:12px;margin:10px 0;">
+        &mdash; {{ 'zender_sms.send.or'|trans }} &mdash;
+    </div>
+
+    {{ form_row(form.customMessage) }}
+    {{ form_row(form.contactId) }}
+    {{ form_row(form.buttons) }}
+    {{ form_end(form) }}
 </div>

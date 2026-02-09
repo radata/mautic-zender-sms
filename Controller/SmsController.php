@@ -3,6 +3,7 @@
 namespace MauticPlugin\ZenderSmsBundle\Controller;
 
 use Mautic\CoreBundle\Controller\FormController;
+use Mautic\SmsBundle\Sms\TransportChain;
 use MauticPlugin\ZenderSmsBundle\Form\Type\SendSmsType;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -10,7 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SmsController extends FormController
 {
-    public function sendSmsAction(Request $request, $objectId = ''): JsonResponse|Response
+    public function sendSmsAction(Request $request, TransportChain $transportChain, $objectId = ''): JsonResponse|Response
     {
         if ('POST' === $request->getMethod()) {
             $data     = $request->request->all()['zender_send_sms'] ?? [];
@@ -39,6 +40,15 @@ class SmsController extends FormController
         /** @var \Mautic\SmsBundle\Model\SmsModel $smsModel */
         $smsModel = $this->getModel('sms');
 
+        // Build transport choices from all enabled transports
+        $enabledTransports = $transportChain->getEnabledTransports();
+        $transportChoices  = [];
+        foreach ($transportChain->getTransports() as $alias => $transportData) {
+            if (isset($enabledTransports[$alias])) {
+                $transportChoices[$alias] = $transportData['alias'] ?? $alias;
+            }
+        }
+
         if ('GET' === $request->getMethod()) {
             $smsList = $smsModel->getRepository()->getSmsList('', 0, 0, true, 'template');
             $choices = [];
@@ -56,7 +66,11 @@ class SmsController extends FormController
                     'form' => $this->createForm(
                         SendSmsType::class,
                         ['contactId' => (string) $objectId],
-                        ['action' => $route, 'sms_choices' => $choices]
+                        [
+                            'action'            => $route,
+                            'sms_choices'       => $choices,
+                            'transport_choices'  => $transportChoices,
+                        ]
                     )->createView(),
                     'contact' => $lead,
                 ],
@@ -70,30 +84,55 @@ class SmsController extends FormController
         }
 
         if ('POST' === $request->getMethod()) {
-            $smsId = $data['smsId'] ?? null;
+            $transportAlias = $data['transport'] ?? null;
+            $smsId          = $data['smsId'] ?? null;
+            $customMessage  = trim($data['customMessage'] ?? '');
 
-            if (!$smsId) {
-                $this->addFlashMessage('zender_sms.send.error.no_sms', [], 'error');
+            // Determine message content
+            $content = null;
+
+            if (!empty($smsId)) {
+                // Template selected - get content from template
+                $sms = $smsModel->getEntity((int) $smsId);
+                if (!$sms || !$sms->isPublished()) {
+                    $this->addFlashMessage('zender_sms.send.error.not_found', [], 'error');
+
+                    return new JsonResponse(['closeModal' => true, 'flashes' => $this->getFlashContent()]);
+                }
+                $content = $sms->getMessage();
+            } elseif (!empty($customMessage)) {
+                $content = $customMessage;
+            }
+
+            if (empty($content)) {
+                $this->addFlashMessage('zender_sms.send.error.no_content', [], 'error');
 
                 return new JsonResponse(['closeModal' => true, 'flashes' => $this->getFlashContent()]);
             }
 
-            $sms = $smsModel->getEntity((int) $smsId);
-
-            if (!$sms || !$sms->isPublished()) {
-                $this->addFlashMessage('zender_sms.send.error.not_found', [], 'error');
+            // Get the selected transport
+            try {
+                $transport = $transportChain->getTransport($transportAlias);
+            } catch (\Exception $e) {
+                $this->addFlashMessage('zender_sms.send.error.transport', [], 'error');
 
                 return new JsonResponse(['closeModal' => true, 'flashes' => $this->getFlashContent()]);
             }
 
-            $result     = $smsModel->sendSms($sms, $lead, ['channel' => 'page']);
-            $leadResult = $result[$lead->getId()] ?? null;
+            // Replace tokens in content
+            $content = str_replace(
+                ['{contactfield=firstname}', '{contactfield=lastname}', '{contactfield=email}', '{contactfield=phone}', '{contactfield=mobile}'],
+                [$lead->getFirstname(), $lead->getLastname(), $lead->getEmail(), $lead->getPhone(), $lead->getMobile()],
+                $content
+            );
 
-            if ($leadResult && !empty($leadResult['sent'])) {
+            // Send via the selected transport
+            $result = $transport->sendSms($lead, $content);
+
+            if (true === $result) {
                 $this->addFlashMessage('zender_sms.send.success');
             } else {
-                $status = $leadResult['status'] ?? 'zender_sms.send.error.failed';
-                $this->addFlashMessage($status, [], 'error');
+                $this->addFlashMessage('zender_sms.send.error.failed_detail', ['%error%' => $result], 'error');
             }
 
             return new JsonResponse(['closeModal' => true, 'flashes' => $this->getFlashContent()]);
