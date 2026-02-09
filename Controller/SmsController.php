@@ -3,6 +3,7 @@
 namespace MauticPlugin\ZenderSmsBundle\Controller;
 
 use Mautic\CoreBundle\Controller\FormController;
+use Mautic\SmsBundle\Entity\Stat;
 use Mautic\SmsBundle\Sms\TransportChain;
 use MauticPlugin\ZenderSmsBundle\Form\Type\SendSmsType;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -129,11 +130,27 @@ class SmsController extends FormController
             // Send via the selected transport
             $result = $transport->sendSms($lead, $content);
 
+            // Create stat entry for activity tracking
+            $stat = new Stat();
+            $stat->setDateSent(new \DateTime());
+            $stat->setLead($lead);
+            $stat->setTrackingHash(str_replace('.', '', uniqid('', true)));
+            $stat->setSource('api');
+
+            if (!empty($smsId) && isset($sms)) {
+                $stat->setSms($sms);
+            }
+
             if (true === $result) {
+                $stat->setDetails(['message' => $content, 'transport' => $transportAlias]);
                 $this->addFlashMessage('zender_sms.send.success');
             } else {
+                $stat->setIsFailed(true);
+                $stat->setDetails(['message' => $content, 'transport' => $transportAlias, 'error' => $result]);
                 $this->addFlashMessage('zender_sms.send.error.failed_detail', ['%error%' => $result], 'error');
             }
+
+            $smsModel->getStatRepository()->saveEntity($stat);
 
             return new JsonResponse(['closeModal' => true, 'flashes' => $this->getFlashContent()]);
         }

@@ -3,6 +3,10 @@
         {{ 'zender_sms.send.description'|trans({'%contact%': contact.getName()}) }}
     </div>
 
+    <div class="alert alert-warning">
+        <strong>Let op!</strong> Gebruiker moet goedkeuring vooraf hebben gegeven!
+    </div>
+
     {{ form_start(form) }}
     {{ form_row(form.transport) }}
     {{ form_row(form.smsId) }}
